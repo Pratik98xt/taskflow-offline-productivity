@@ -100,42 +100,42 @@ Application Data Flow
 
 The UI communicates with BLoC through events. BLoC handles application logic and communicates with the repository. The repository manages data operations through the SQLite database helper.
 
-Project Structure
+## Project Structure
 
+```text
 lib/
 ├── core/
 │   ├── database/
 │   ├── errors/
 │   ├── theme/
 │   └── utils/
-│
 ├── models/
 │   └── task_model.dart
-│
 ├── views/
 │   ├── dashboard/
 │   ├── tasks/
 │   ├── kanban/
 │   ├── analytics/
 │   └── settings/
-│
 ├── controllers/
 │   ├── task_controller/
 │   ├── dashboard_controller/
 │   └── analytics_controller/
-│
 ├── repositories/
 │   └── task_repository.dart
-│
 └── main.dart
+```
 
-Screenshots
+## Screenshots
 
-Dashboard
+### Dashboard
+![Dashboard](screenshots/dashboard.png)
 
-Kanban Board
+### Kanban Board
+![Kanban Board](screenshots/kanban.png)
 
-Analytics
+### Analytics
+![Analytics](screenshots/analytics.png)
 
 Installation and Setup
 
