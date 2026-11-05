@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import 'core/utils/notification_service.dart';
 import 'controllers/task_controller/task_event.dart';
 import 'core/theme/app_theme.dart';
 import 'controllers/task_controller/task_bloc.dart';
 import 'repositories/task_repository.dart';
 import 'views/dashboard/dashboard_screen.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await NotificationService.initialize();
 
   runApp(const TaskFlowApp());
 }

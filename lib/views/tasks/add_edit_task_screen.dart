@@ -34,6 +34,7 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
   late String category;
 
   DateTime? dueDate;
+  TimeOfDay? dueTime;
 
   bool get isEditing => widget.task != null;
 
@@ -53,6 +54,10 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
     status = task?.status ?? TaskStatus.todo;
     category = task?.category ?? 'General';
     dueDate = task?.dueDate;
+
+    if (task?.dueDate != null) {
+      dueTime = TimeOfDay.fromDateTime(task!.dueDate!);
+    }
   }
 
   @override
@@ -77,6 +82,19 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
     }
   }
 
+  Future<void> selectDueTime() async {
+    final selectedTime = await showTimePicker(
+      context: context,
+      initialTime: dueTime ?? TimeOfDay.now(),
+    );
+
+    if (selectedTime != null) {
+      setState(() {
+        dueTime = selectedTime;
+      });
+    }
+  }
+
   void saveTask() {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -91,7 +109,15 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
       category: category,
       priority: priority,
       status: status,
-      dueDate: dueDate,
+      dueDate: dueDate == null
+          ? null
+          : DateTime(
+              dueDate!.year,
+              dueDate!.month,
+              dueDate!.day,
+              dueTime?.hour ?? 23,
+              dueTime?.minute ?? 59,
+            ),
       createdAt: widget.task?.createdAt ?? now,
       updatedAt: now,
     );
@@ -251,6 +277,27 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
                       : '${dueDate!.day}/${dueDate!.month}/${dueDate!.year}',
                 ),
               ),
+
+              const SizedBox(height: 12),
+
+              if (dueDate != null) ...[
+                const Text(
+                  'Due Time',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+
+                const SizedBox(height: 8),
+
+                OutlinedButton.icon(
+                  onPressed: selectDueTime,
+                  icon: const Icon(Icons.access_time),
+                  label: Text(
+                    dueTime == null
+                        ? 'Select Due Time'
+                        : dueTime!.format(context),
+                  ),
+                ),
+              ],
 
               if (dueDate != null)
                 TextButton(

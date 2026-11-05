@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../core/utils/notification_service.dart';
 import '../../models/task_model.dart';
 import '../../repositories/task_repository.dart';
 import '../../core/errors/app_exception.dart';
@@ -36,10 +37,18 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
 
   Future<void> _addTask(AddTask event, Emitter<TaskState> emit) async {
     try {
-      await repository.createTask(event.task);
+      final taskId = await repository.createTask(event.task);
+
+      if (event.task.dueDate != null &&
+          event.task.status != TaskStatus.completed) {
+        await NotificationService.scheduleTaskNotification(
+          taskId: taskId,
+          title: event.task.title,
+          dueDate: event.task.dueDate!,
+        );
+      }
 
       final tasks = await repository.getAllTasks();
-
       emit(_buildLoadedState(tasks));
     } catch (e) {
       emit(TaskError(e is AppException ? e.message : 'Unable to add task.'));
