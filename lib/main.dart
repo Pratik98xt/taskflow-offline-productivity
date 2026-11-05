@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'controllers/task_controller/task_event.dart';
 import 'core/theme/app_theme.dart';
+import 'controllers/task_controller/task_bloc.dart';
+import 'repositories/task_repository.dart';
 import 'views/dashboard/dashboard_screen.dart';
 
 void main() {
@@ -13,11 +17,19 @@ class TaskFlowApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'TaskFlow',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.lightTheme,
-      home: const DashboardScreen(),
+    return RepositoryProvider(
+      create: (_) => TaskRepository(),
+      child: BlocProvider(
+        create: (context) => TaskBloc(
+          context.read<TaskRepository>(),
+        )..add(LoadTasks()),
+        child: MaterialApp(
+          title: 'TaskFlow',
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.lightTheme,
+          home: const DashboardScreen(),
+        ),
+      ),
     );
   }
 }
