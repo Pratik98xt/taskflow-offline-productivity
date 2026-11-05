@@ -59,3 +59,12 @@ class TaskError extends TaskState {
   @override
   List<Object?> get props => [message];
 }
+
+class TaskActionSuccess extends TaskState {
+  final String message;
+
+  const TaskActionSuccess(this.message);
+
+  @override
+  List<Object?> get props => [message];
+}

@@ -70,3 +70,9 @@ class SortTasks extends TaskEvent {
 }
 
 class ClearTaskFilters extends TaskEvent {}
+
+// JSON IMPORT / EXPORT
+
+class ExportTasks extends TaskEvent {}
+
+class ImportTasks extends TaskEvent {}

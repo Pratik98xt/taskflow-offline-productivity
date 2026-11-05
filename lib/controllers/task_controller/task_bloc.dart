@@ -7,6 +7,7 @@ import '../../core/errors/app_exception.dart';
 
 import 'task_event.dart';
 import 'task_state.dart';
+import '../../core/utils/import_export_service.dart';
 
 class TaskBloc extends Bloc<TaskEvent, TaskState> {
   final TaskRepository repository;
@@ -21,6 +22,8 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
     on<FilterTasks>(_filterTasks);
     on<SortTasks>(_sortTasks);
     on<ClearTaskFilters>(_clearFilters);
+    on<ExportTasks>(_exportTasks);
+    on<ImportTasks>(_importTasks);
   }
 
   Future<void> _loadTasks(LoadTasks event, Emitter<TaskState> emit) async {
@@ -59,8 +62,23 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
     try {
       await repository.updateTask(event.task);
 
-      final tasks = await repository.getAllTasks();
+      final task = event.task;
 
+      if (task.id != null) {
+        if (task.status == TaskStatus.completed ||
+            task.dueDate == null ||
+            task.dueDate!.isBefore(DateTime.now())) {
+          await NotificationService.cancelTaskNotification(task.id!);
+        } else {
+          await NotificationService.scheduleTaskNotification(
+            taskId: task.id!,
+            title: task.title,
+            dueDate: task.dueDate!,
+          );
+        }
+      }
+
+      final tasks = await repository.getAllTasks();
       emit(_buildLoadedState(tasks));
     } catch (e) {
       emit(TaskError(e is AppException ? e.message : 'Unable to update task.'));
@@ -71,8 +89,9 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
     try {
       await repository.deleteTask(event.id);
 
-      final tasks = await repository.getAllTasks();
+      await NotificationService.cancelTaskNotification(event.id);
 
+      final tasks = await repository.getAllTasks();
       emit(_buildLoadedState(tasks));
     } catch (e) {
       emit(TaskError(e is AppException ? e.message : 'Unable to delete task.'));
@@ -149,6 +168,70 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
     emit(_buildLoadedState(current.allTasks));
   }
 
+  Future<void> _exportTasks(ExportTasks event, Emitter<TaskState> emit) async {
+    try {
+      final tasks = await repository.getAllTasks();
+
+      if (tasks.isEmpty) {
+        emit(const TaskActionSuccess('No tasks available to export.'));
+      } else {
+        await ImportExportService.exportTasks(tasks);
+        emit(const TaskActionSuccess('Tasks exported successfully!'));
+      }
+
+      emit(_buildLoadedState(tasks));
+    } catch (e) {
+      emit(TaskError('Export failed: $e'));
+    }
+  }
+
+  Future<void> _importTasks(ImportTasks event, Emitter<TaskState> emit) async {
+    try {
+      final importedTasks = await ImportExportService.importTasks();
+
+      if (importedTasks.isEmpty) {
+        emit(const TaskActionSuccess('No valid tasks found to import.'));
+        emit(_buildLoadedState(await repository.getAllTasks()));
+        return;
+      }
+
+      final existingTasks = await repository.getAllTasks();
+
+      final existingKeys = existingTasks
+          .map(
+            (task) =>
+                '${task.title.trim().toLowerCase()}_${task.category.trim().toLowerCase()}',
+          )
+          .toSet();
+
+      int importedCount = 0;
+      int skippedCount = 0;
+
+      for (final task in importedTasks) {
+        final key =
+            '${task.title.trim().toLowerCase()}_${task.category.trim().toLowerCase()}';
+
+        if (existingKeys.contains(key)) {
+          skippedCount++;
+          continue;
+        }
+
+        await repository.createTask(task);
+        existingKeys.add(key);
+        importedCount++;
+      }
+
+      final updatedTasks = await repository.getAllTasks();
+
+      emit(
+        TaskActionSuccess('Imported: $importedCount | Skipped: $skippedCount'),
+      );
+
+      emit(_buildLoadedState(updatedTasks));
+    } catch (e) {
+      emit(TaskError('Import failed: $e'));
+    }
+  }
   // FILTERING AND SORTING ENGINE
 
   TaskLoaded _buildLoadedState(
