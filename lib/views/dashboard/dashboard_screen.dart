@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../analytics/analytics_screen.dart';
 import '../kanban/kanban_screen.dart';
 import '../../controllers/task_controller/task_bloc.dart';
 import '../../controllers/task_controller/task_event.dart';
@@ -287,6 +288,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const KanbanScreen()),
+              );
+            },
+          ),
+          IconButton(
+            tooltip: 'Analytics',
+            icon: const Icon(Icons.analytics_outlined),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AnalyticsScreen()),
               );
             },
           ),
