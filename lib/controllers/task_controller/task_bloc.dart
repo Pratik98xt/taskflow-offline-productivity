@@ -1,13 +1,13 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../core/errors/app_exception.dart';
+import '../../core/utils/import_export_service.dart';
 import '../../core/utils/notification_service.dart';
 import '../../models/task_model.dart';
 import '../../repositories/task_repository.dart';
-import '../../core/errors/app_exception.dart';
 
 import 'task_event.dart';
 import 'task_state.dart';
-import '../../core/utils/import_export_service.dart';
 
 class TaskBloc extends Bloc<TaskEvent, TaskState> {
   final TaskRepository repository;
@@ -22,85 +22,161 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
     on<FilterTasks>(_filterTasks);
     on<SortTasks>(_sortTasks);
     on<ClearTaskFilters>(_clearFilters);
+
     on<ExportTasks>(_exportTasks);
     on<ImportTasks>(_importTasks);
   }
 
-  Future<void> _loadTasks(LoadTasks event, Emitter<TaskState> emit) async {
+  // LOAD TASKS
+
+  Future<void> _loadTasks(
+    LoadTasks event,
+    Emitter<TaskState> emit,
+  ) async {
     emit(TaskLoading());
 
     try {
       final tasks = await repository.getAllTasks();
-
       emit(_buildLoadedState(tasks));
     } catch (e) {
-      emit(TaskError('Unable to load tasks.'));
+      emit(
+        TaskError(
+          e is AppException ? e.message : 'Unable to load tasks.',
+        ),
+      );
     }
   }
 
-  Future<void> _addTask(AddTask event, Emitter<TaskState> emit) async {
+  // ADD TASK
+
+  Future<void> _addTask(
+    AddTask event,
+    Emitter<TaskState> emit,
+  ) async {
     try {
-      final taskId = await repository.createTask(event.task);
-
-      if (event.task.dueDate != null &&
-          event.task.status != TaskStatus.completed) {
-        await NotificationService.scheduleTaskNotification(
-          taskId: taskId,
-          title: event.task.title,
-          dueDate: event.task.dueDate!,
-        );
-      }
-
-      final tasks = await repository.getAllTasks();
-      emit(_buildLoadedState(tasks));
-    } catch (e) {
-      emit(TaskError(e is AppException ? e.message : 'Unable to add task.'));
-    }
-  }
-
-  Future<void> _updateTask(UpdateTask event, Emitter<TaskState> emit) async {
-    try {
-      await repository.updateTask(event.task);
-
       final task = event.task;
 
-      if (task.id != null) {
-        if (task.status == TaskStatus.completed ||
-            task.dueDate == null ||
-            task.dueDate!.isBefore(DateTime.now())) {
-          await NotificationService.cancelTaskNotification(task.id!);
-        } else {
+      final existingTasks = await repository.getAllTasks();
+
+      final isDuplicate = existingTasks.any(
+        (existing) =>
+            existing.title.trim().toLowerCase() ==
+                task.title.trim().toLowerCase() &&
+            existing.category.trim().toLowerCase() ==
+                task.category.trim().toLowerCase(),
+      );
+
+      if (isDuplicate) {
+        emit(
+          const TaskActionSuccess(
+            'A task with this title already exists in this category.',
+          ),
+        );
+
+        emit(_buildLoadedState(existingTasks));
+        return;
+      }
+
+      final taskId = await repository.createTask(task);
+
+      // Notification failure must not undo successful task creation.
+      if (task.dueDate != null &&
+          task.status != TaskStatus.completed) {
+        try {
           await NotificationService.scheduleTaskNotification(
-            taskId: task.id!,
+            taskId: taskId,
             title: task.title,
             dueDate: task.dueDate!,
           );
+        } catch (_) {
+          // Task is already saved.
         }
       }
 
       final tasks = await repository.getAllTasks();
       emit(_buildLoadedState(tasks));
     } catch (e) {
-      emit(TaskError(e is AppException ? e.message : 'Unable to update task.'));
+      emit(
+        TaskError(
+          e is AppException ? e.message : 'Unable to add task.',
+        ),
+      );
     }
   }
 
-  Future<void> _deleteTask(DeleteTask event, Emitter<TaskState> emit) async {
-    try {
-      await repository.deleteTask(event.id);
+  // UPDATE TASK
 
-      await NotificationService.cancelTaskNotification(event.id);
+  Future<void> _updateTask(
+    UpdateTask event,
+    Emitter<TaskState> emit,
+  ) async {
+    try {
+      final task = event.task;
+
+      await repository.updateTask(task);
+
+      // Notification failure must not undo successful task update.
+      if (task.id != null) {
+        try {
+          if (task.status == TaskStatus.completed ||
+              task.dueDate == null ||
+              task.dueDate!.isBefore(DateTime.now())) {
+            await NotificationService.cancelTaskNotification(task.id!);
+          } else {
+            await NotificationService.scheduleTaskNotification(
+              taskId: task.id!,
+              title: task.title,
+              dueDate: task.dueDate!,
+            );
+          }
+        } catch (_) {
+          // Task update is already saved.
+        }
+      }
 
       final tasks = await repository.getAllTasks();
       emit(_buildLoadedState(tasks));
     } catch (e) {
-      emit(TaskError(e is AppException ? e.message : 'Unable to delete task.'));
+      emit(
+        TaskError(
+          e is AppException ? e.message : 'Unable to update task.',
+        ),
+      );
     }
   }
 
-  // SEARCH
+  // DELETE TASK
 
-  void _searchTasks(SearchTasks event, Emitter<TaskState> emit) {
+  Future<void> _deleteTask(
+    DeleteTask event,
+    Emitter<TaskState> emit,
+  ) async {
+    try {
+      await repository.deleteTask(event.id);
+
+      // Notification cancellation failure must not undo deletion.
+      try {
+        await NotificationService.cancelTaskNotification(event.id);
+      } catch (_) {
+        // Task is already deleted.
+      }
+
+      final tasks = await repository.getAllTasks();
+      emit(_buildLoadedState(tasks));
+    } catch (e) {
+      emit(
+        TaskError(
+          e is AppException ? e.message : 'Unable to delete task.',
+        ),
+      );
+    }
+  }
+    // SEARCH
+
+  void _searchTasks(
+    SearchTasks event,
+    Emitter<TaskState> emit,
+  ) {
     if (state is! TaskLoaded) return;
 
     final current = state as TaskLoaded;
@@ -120,7 +196,10 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
 
   // FILTER
 
-  void _filterTasks(FilterTasks event, Emitter<TaskState> emit) {
+  void _filterTasks(
+    FilterTasks event,
+    Emitter<TaskState> emit,
+  ) {
     if (state is! TaskLoaded) return;
 
     final current = state as TaskLoaded;
@@ -140,7 +219,10 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
 
   // SORT
 
-  void _sortTasks(SortTasks event, Emitter<TaskState> emit) {
+  void _sortTasks(
+    SortTasks event,
+    Emitter<TaskState> emit,
+  ) {
     if (state is! TaskLoaded) return;
 
     final current = state as TaskLoaded;
@@ -160,37 +242,67 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
 
   // CLEAR FILTERS
 
-  void _clearFilters(ClearTaskFilters event, Emitter<TaskState> emit) {
+  void _clearFilters(
+    ClearTaskFilters event,
+    Emitter<TaskState> emit,
+  ) {
     if (state is! TaskLoaded) return;
 
     final current = state as TaskLoaded;
 
     emit(_buildLoadedState(current.allTasks));
   }
+    // EXPORT TASKS
 
-  Future<void> _exportTasks(ExportTasks event, Emitter<TaskState> emit) async {
+  Future<void> _exportTasks(
+    ExportTasks event,
+    Emitter<TaskState> emit,
+  ) async {
     try {
       final tasks = await repository.getAllTasks();
 
       if (tasks.isEmpty) {
         emit(const TaskActionSuccess('No tasks available to export.'));
-      } else {
-        await ImportExportService.exportTasks(tasks);
-        emit(const TaskActionSuccess('Tasks exported successfully!'));
+        emit(_buildLoadedState(tasks));
+        return;
       }
+
+      final exported = await ImportExportService.exportTasks(tasks);
+
+      emit(
+        TaskActionSuccess(
+          exported ? 'Tasks exported successfully!' : 'Export cancelled.',
+        ),
+      );
 
       emit(_buildLoadedState(tasks));
     } catch (e) {
-      emit(TaskError('Export failed: $e'));
+      emit(
+        TaskError(
+          e is AppException ? e.message : 'Export failed.',
+        ),
+      );
     }
   }
 
-  Future<void> _importTasks(ImportTasks event, Emitter<TaskState> emit) async {
+  // IMPORT TASKS
+
+  Future<void> _importTasks(
+    ImportTasks event,
+    Emitter<TaskState> emit,
+  ) async {
     try {
       final importedTasks = await ImportExportService.importTasks();
 
+      // User cancelled the file picker.
+      if (importedTasks == null) {
+        emit(const TaskActionSuccess('Import cancelled.'));
+        emit(_buildLoadedState(await repository.getAllTasks()));
+        return;
+      }
+
       if (importedTasks.isEmpty) {
-        emit(const TaskActionSuccess('No valid tasks found to import.'));
+        emit(const TaskActionSuccess('No valid tasks found in backup.'));
         emit(_buildLoadedState(await repository.getAllTasks()));
         return;
       }
@@ -224,15 +336,21 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
       final updatedTasks = await repository.getAllTasks();
 
       emit(
-        TaskActionSuccess('Imported: $importedCount | Skipped: $skippedCount'),
+        TaskActionSuccess(
+          'Imported: $importedCount | Skipped: $skippedCount',
+        ),
       );
 
       emit(_buildLoadedState(updatedTasks));
     } catch (e) {
-      emit(TaskError('Import failed: $e'));
+      emit(
+        TaskError(
+          e is AppException ? e.message : 'Import failed.',
+        ),
+      );
     }
   }
-  // FILTERING AND SORTING ENGINE
+    // FILTERING AND SORTING ENGINE
 
   TaskLoaded _buildLoadedState(
     List<TaskModel> allTasks, {
@@ -243,20 +361,28 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
     DateTime? dueDate,
     TaskSortOption sortOption = TaskSortOption.newest,
   }) {
-    List<TaskModel> filtered = allTasks.where((task) {
+    final filtered = allTasks.where((task) {
       final query = searchQuery.trim().toLowerCase();
 
+      // Search by title and description.
       final matchesSearch =
           query.isEmpty ||
           task.title.toLowerCase().contains(query) ||
           task.description.toLowerCase().contains(query);
 
-      final matchesPriority = priority == null || task.priority == priority;
+      // Priority filter.
+      final matchesPriority =
+          priority == null || task.priority == priority;
 
-      final matchesStatus = status == null || task.status == status;
+      // Status filter.
+      final matchesStatus =
+          status == null || task.status == status;
 
-      final matchesCategory = category == null || task.category == category;
+      // Category filter.
+      final matchesCategory =
+          category == null || task.category == category;
 
+      // Due date filter.
       final matchesDate =
           dueDate == null ||
           (task.dueDate != null &&
@@ -275,15 +401,20 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
 
     switch (sortOption) {
       case TaskSortOption.newest:
-        filtered.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        filtered.sort(
+          (a, b) => b.createdAt.compareTo(a.createdAt),
+        );
         break;
 
       case TaskSortOption.oldest:
-        filtered.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+        filtered.sort(
+          (a, b) => a.createdAt.compareTo(b.createdAt),
+        );
         break;
 
       case TaskSortOption.dueDate:
         filtered.sort((a, b) {
+          if (a.dueDate == null && b.dueDate == null) return 0;
           if (a.dueDate == null) return 1;
           if (b.dueDate == null) return -1;
 
@@ -292,7 +423,9 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
         break;
 
       case TaskSortOption.priority:
-        filtered.sort((a, b) => b.priority.index.compareTo(a.priority.index));
+        filtered.sort(
+          (a, b) => b.priority.index.compareTo(a.priority.index),
+        );
         break;
     }
 

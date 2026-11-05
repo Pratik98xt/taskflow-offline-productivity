@@ -53,6 +53,7 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
     priority = task?.priority ?? TaskPriority.medium;
     status = task?.status ?? TaskStatus.todo;
     category = task?.category ?? 'General';
+
     dueDate = task?.dueDate;
 
     if (task?.dueDate != null) {
@@ -68,10 +69,16 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
   }
 
   Future<void> selectDueDate() async {
+    final now = DateTime.now();
+
+    final initialDate = dueDate != null && dueDate!.isBefore(now)
+        ? now
+        : dueDate ?? now;
+
     final selectedDate = await showDatePicker(
       context: context,
-      initialDate: dueDate ?? DateTime.now(),
-      firstDate: DateTime.now(),
+      initialDate: initialDate,
+      firstDate: DateTime(now.year, now.month, now.day),
       lastDate: DateTime(2100),
     );
 
@@ -95,8 +102,33 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
     }
   }
 
+  String? validateDeadline() {
+    if (dueDate == null) return null;
+
+    final selectedDeadline = DateTime(
+      dueDate!.year,
+      dueDate!.month,
+      dueDate!.day,
+      dueTime?.hour ?? 23,
+      dueTime?.minute ?? 59,
+    );
+
+    if (selectedDeadline.isBefore(DateTime.now())) {
+      return 'Please select a future deadline.';
+    }
+
+    return null;
+  }
+
   void saveTask() {
-    if (!_formKey.currentState!.validate()) {
+    if (!_formKey.currentState!.validate()) return;
+
+    final deadlineError = validateDeadline();
+
+    if (deadlineError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(deadlineError), backgroundColor: Colors.red),
+      );
       return;
     }
 
@@ -135,187 +167,185 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(isEditing ? 'Edit Task' : 'Create Task')),
-
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-
-        child: Form(
-          key: _formKey,
-
+      body: Form(
+        key: _formKey,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Task Title',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-
-              const SizedBox(height: 8),
-
               TextFormField(
                 controller: titleController,
-                maxLength: 100,
                 decoration: const InputDecoration(
+                  labelText: 'Task Title',
                   hintText: 'Enter task title',
-                  counterText: '',
+                  prefixIcon: Icon(Icons.title),
                 ),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
-                    return 'Task title is required';
+                    return 'Please enter a task title.';
                   }
-
+                  if (value.trim().length < 3) {
+                    return 'Title must contain at least 3 characters.';
+                  }
                   return null;
                 },
               ),
 
-              const SizedBox(height: 20),
-
-              const Text(
-                'Description',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-
-              const SizedBox(height: 8),
+              const SizedBox(height: 16),
 
               TextFormField(
                 controller: descriptionController,
-                maxLength: 1000,
                 maxLines: 4,
                 decoration: const InputDecoration(
+                  labelText: 'Description',
                   hintText: 'Enter task description',
+                  prefixIcon: Icon(Icons.description_outlined),
                   alignLabelWithHint: true,
                 ),
               ),
 
-              const SizedBox(height: 20),
-
-              const Text(
-                'Category',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-
-              const SizedBox(height: 8),
+              const SizedBox(height: 16),
 
               DropdownButtonFormField<String>(
                 initialValue: category,
-                decoration: const InputDecoration(border: OutlineInputBorder()),
-                items: categories.map((value) {
-                  return DropdownMenuItem(value: value, child: Text(value));
+                decoration: const InputDecoration(
+                  labelText: 'Category',
+                  prefixIcon: Icon(Icons.category_outlined),
+                ),
+                items: categories.map((item) {
+                  return DropdownMenuItem(value: item, child: Text(item));
                 }).toList(),
                 onChanged: (value) {
                   if (value != null) {
-                    setState(() => category = value);
+                    setState(() {
+                      category = value;
+                    });
                   }
+                },
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please select a category.';
+                  }
+                  return null;
                 },
               ),
 
-              const SizedBox(height: 20),
-
-              const Text(
-                'Priority',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-
-              const SizedBox(height: 8),
+              const SizedBox(height: 16),
 
               DropdownButtonFormField<TaskPriority>(
                 initialValue: priority,
-                decoration: const InputDecoration(),
-                items: TaskPriority.values.map((value) {
+                decoration: const InputDecoration(
+                  labelText: 'Priority',
+                  prefixIcon: Icon(Icons.flag_outlined),
+                ),
+                items: TaskPriority.values.map((item) {
                   return DropdownMenuItem(
-                    value: value,
-                    child: Text(value.name.toUpperCase()),
+                    value: item,
+                    child: Text(
+                      item.name[0].toUpperCase() + item.name.substring(1),
+                    ),
                   );
                 }).toList(),
                 onChanged: (value) {
                   if (value != null) {
-                    setState(() => priority = value);
+                    setState(() {
+                      priority = value;
+                    });
                   }
                 },
               ),
 
-              const SizedBox(height: 20),
-
-              const Text(
-                'Task Status',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-
-              const SizedBox(height: 8),
+              const SizedBox(height: 16),
 
               DropdownButtonFormField<TaskStatus>(
                 initialValue: status,
-                decoration: const InputDecoration(),
-                items: TaskStatus.values.map((value) {
+                decoration: const InputDecoration(
+                  labelText: 'Status',
+                  prefixIcon: Icon(Icons.check_circle_outline),
+                ),
+                items: TaskStatus.values.map((item) {
                   return DropdownMenuItem(
-                    value: value,
-                    child: Text(value.name),
+                    value: item,
+                    child: Text(
+                      item.name == 'inProgress'
+                          ? 'In Progress'
+                          : item.name[0].toUpperCase() + item.name.substring(1),
+                    ),
                   );
                 }).toList(),
                 onChanged: (value) {
                   if (value != null) {
-                    setState(() => status = value);
+                    setState(() {
+                      status = value;
+                    });
                   }
                 },
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 24),
 
               const Text(
-                'Due Date',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-
-              const SizedBox(height: 8),
-
-              OutlinedButton.icon(
-                onPressed: selectDueDate,
-                icon: const Icon(Icons.calendar_month),
-                label: Text(
-                  dueDate == null
-                      ? 'Select Due Date'
-                      : '${dueDate!.day}/${dueDate!.month}/${dueDate!.year}',
-                ),
+                'Deadline',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
               ),
 
               const SizedBox(height: 12),
 
-              if (dueDate != null) ...[
-                const Text(
-                  'Due Time',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
-
-                const SizedBox(height: 8),
-
-                OutlinedButton.icon(
-                  onPressed: selectDueTime,
-                  icon: const Icon(Icons.access_time),
-                  label: Text(
-                    dueTime == null
-                        ? 'Select Due Time'
-                        : dueTime!.format(context),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: selectDueDate,
+                      icon: const Icon(Icons.calendar_today_outlined),
+                      label: Text(
+                        dueDate == null
+                            ? 'Select Date'
+                            : '${dueDate!.day}/${dueDate!.month}/${dueDate!.year}',
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: dueDate == null ? null : selectDueTime,
+                      icon: const Icon(Icons.access_time),
+                      label: Text(
+                        dueTime == null
+                            ? 'Select Time'
+                            : dueTime!.format(context),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
 
               if (dueDate != null)
-                TextButton(
-                  onPressed: () {
-                    setState(() => dueDate = null);
-                  },
-                  child: const Text('Remove due date'),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        dueDate = null;
+                        dueTime = null;
+                      });
+                    },
+                    icon: const Icon(Icons.close),
+                    label: const Text('Remove deadline'),
+                  ),
                 ),
 
-              const SizedBox(height: 30),
-
+              const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
-                child: ElevatedButton(
+                child: ElevatedButton.icon(
                   onPressed: saveTask,
-                  child: Text(isEditing ? 'Update Task' : 'Save Task'),
+                  icon: Icon(isEditing ? Icons.save_outlined : Icons.add),
+                  label: Text(isEditing ? 'Update Task' : 'Create Task'),
                 ),
               ),
+
+              const SizedBox(height: 20),
             ],
           ),
         ),

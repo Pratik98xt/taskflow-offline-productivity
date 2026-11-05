@@ -495,7 +495,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.search_off, size: 55, color: Colors.grey),
+            Icon(
+  state.allTasks.isEmpty
+      ? Icons.task_alt_outlined
+      : Icons.search_off,
+  size: 64,
+  color: Colors.grey.shade400,
+),
 
             const SizedBox(height: 12),
 
@@ -575,7 +581,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
 
                 // DESCRIPTION
-                Text(task.description),
+                if (task.description.trim().isNotEmpty)
+  Text(
+    task.description,
+    style: TextStyle(color: Colors.grey.shade600),
+  ),
 
                 const SizedBox(height: 12),
 
@@ -623,7 +633,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   items: TaskStatus.values.map((status) {
                     return DropdownMenuItem(
                       value: status,
-                      child: Text(status.name),
+                      child: Text(
+  status == TaskStatus.inProgress
+      ? 'In Progress'
+      : status.name[0].toUpperCase() + status.name.substring(1),
+),
                     );
                   }).toList(),
 

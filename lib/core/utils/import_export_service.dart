@@ -2,12 +2,13 @@ import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
 
+import '../errors/app_exception.dart';
 import '../../models/task_model.dart';
 
 class ImportExportService {
   // EXPORT TASKS
 
-  static Future<void> exportTasks(List<TaskModel> tasks) async {
+  static Future<bool> exportTasks(List<TaskModel> tasks) async {
     try {
       final jsonData = {
         'app': 'TaskFlow',
@@ -17,28 +18,36 @@ class ImportExportService {
       };
 
       final jsonString = const JsonEncoder.withIndent('  ').convert(jsonData);
-
       final bytes = utf8.encode(jsonString);
 
-      await FilePicker.saveFile(
+      final result = await FilePicker.saveFile(
         dialogTitle: 'Export TaskFlow Tasks',
         fileName: 'taskflow_backup.json',
         bytes: bytes,
       );
+
+      // Null means the user cancelled the save dialog.
+      return result != null;
     } catch (e) {
-      throw Exception('Unable to export tasks: $e');
+      throw ImportExportException(
+        'Unable to export tasks.',
+        details: e.toString(),
+      );
     }
   }
 
-  static Future<List<TaskModel>> importTasks() async {
+  // IMPORT TASKS
+
+  static Future<List<TaskModel>?> importTasks() async {
     try {
       final files = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['json'],
       );
 
+      // Empty list means the user cancelled.
       if (files.isEmpty) {
-        return [];
+        return null;
       }
 
       final bytes = await files.first.readAsBytes();
@@ -55,7 +64,9 @@ class ImportExportService {
       final List<TaskModel> tasks = [];
 
       for (final item in decoded['tasks']) {
-        if (item is! Map<String, dynamic>) continue;
+        if (item is! Map<String, dynamic>) {
+          continue;
+        }
 
         try {
           final task = TaskModel.fromJson(item);
@@ -66,13 +77,16 @@ class ImportExportService {
 
           tasks.add(task.copyWith(id: null));
         } catch (_) {
-          continue;
+          // Skip invalid records.
         }
       }
 
       return tasks;
     } catch (e) {
-      throw Exception('Unable to import tasks: $e');
+      throw ImportExportException(
+        'Unable to import tasks. Please select a valid TaskFlow backup.',
+        details: e.toString(),
+      );
     }
   }
 }
