@@ -1,5 +1,10 @@
 import 'package:equatable/equatable.dart';
+
 import '../../models/task_model.dart';
+
+enum TaskSortOption { newest, oldest, dueDate, priority }
+
+class TaskInitial extends TaskState {}
 
 abstract class TaskState extends Equatable {
   const TaskState();
@@ -8,17 +13,42 @@ abstract class TaskState extends Equatable {
   List<Object?> get props => [];
 }
 
-class TaskInitial extends TaskState {}
-
 class TaskLoading extends TaskState {}
 
 class TaskLoaded extends TaskState {
   final List<TaskModel> tasks;
+  final List<TaskModel> allTasks;
 
-  const TaskLoaded(this.tasks);
+  final String searchQuery;
+  final TaskPriority? priority;
+  final TaskStatus? status;
+  final String? category;
+  final DateTime? dueDate;
+
+  final TaskSortOption sortOption;
+
+  const TaskLoaded({
+    required this.tasks,
+    required this.allTasks,
+    this.searchQuery = '',
+    this.priority,
+    this.status,
+    this.category,
+    this.dueDate,
+    this.sortOption = TaskSortOption.newest,
+  });
 
   @override
-  List<Object?> get props => [tasks];
+  List<Object?> get props => [
+    tasks,
+    allTasks,
+    searchQuery,
+    priority,
+    status,
+    category,
+    dueDate,
+    sortOption,
+  ];
 }
 
 class TaskError extends TaskState {
