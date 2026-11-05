@@ -7,10 +7,8 @@ import '../models/task_model.dart';
 class TaskRepository {
   final DatabaseHelper databaseHelper;
 
-  TaskRepository({
-    DatabaseHelper? databaseHelper,
-  }) : databaseHelper =
-            databaseHelper ?? DatabaseHelper.instance;
+  TaskRepository({DatabaseHelper? databaseHelper})
+    : databaseHelper = databaseHelper ?? DatabaseHelper.instance;
 
   // CREATE TASK
 
@@ -18,10 +16,7 @@ class TaskRepository {
     try {
       final db = await databaseHelper.database;
 
-      return await db.insert(
-        'tasks',
-        task.toMap()..remove('id'),
-      );
+      return await db.insert('tasks', task.toMap()..remove('id'));
     } on DatabaseException catch (e) {
       throw DatabaseAppException(
         'Unable to create task.',
@@ -36,10 +31,7 @@ class TaskRepository {
     try {
       final db = await databaseHelper.database;
 
-      final result = await db.query(
-        'tasks',
-        orderBy: 'createdAt DESC',
-      );
+      final result = await db.query('tasks', orderBy: 'createdAt DESC');
 
       return result.map(TaskModel.fromMap).toList();
     } on DatabaseException catch (e) {
@@ -91,15 +83,12 @@ class TaskRepository {
   Future<int> updateTask(TaskModel task) async {
     try {
       if (task.id == null) {
-        throw ValidationException(
-          'Task ID is required for updating.',
-        );
+        throw ValidationException('Task ID is required for updating.');
       }
 
       final db = await databaseHelper.database;
 
-      final data = task.toMap()
-        ..remove('id');
+      final data = task.toMap()..remove('id');
 
       final count = await db.update(
         'tasks',
@@ -123,11 +112,7 @@ class TaskRepository {
     try {
       final db = await databaseHelper.database;
 
-      return await db.delete(
-        'tasks',
-        where: 'id = ?',
-        whereArgs: [id],
-      );
+      return await db.delete('tasks', where: 'id = ?', whereArgs: [id]);
     } on DatabaseException catch (e) {
       throw DatabaseAppException(
         'Unable to delete task.',

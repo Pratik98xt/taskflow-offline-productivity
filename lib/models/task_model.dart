@@ -1,14 +1,6 @@
-enum TaskPriority {
-  low,
-  medium,
-  high,
-}
+enum TaskPriority { low, medium, high }
 
-enum TaskStatus {
-  todo,
-  inProgress,
-  completed,
-}
+enum TaskStatus { todo, inProgress, completed }
 
 class TaskModel {
   final int? id;
@@ -57,12 +49,8 @@ class TaskModel {
       title: map['title'] as String,
       description: map['description'] as String,
       category: map['category'] as String,
-      priority: TaskPriority.values.byName(
-        map['priority'] as String,
-      ),
-      status: TaskStatus.values.byName(
-        map['status'] as String,
-      ),
+      priority: TaskPriority.values.byName(map['priority'] as String),
+      status: TaskStatus.values.byName(map['status'] as String),
       dueDate: map['dueDate'] == null
           ? null
           : DateTime.parse(map['dueDate'] as String),

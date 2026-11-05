@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+
 import 'controllers/task_controller/task_event.dart';
 import 'core/theme/app_theme.dart';
 import 'controllers/task_controller/task_bloc.dart';
@@ -20,9 +21,8 @@ class TaskFlowApp extends StatelessWidget {
     return RepositoryProvider(
       create: (_) => TaskRepository(),
       child: BlocProvider(
-        create: (context) => TaskBloc(
-          context.read<TaskRepository>(),
-        )..add(LoadTasks()),
+        create: (context) =>
+            TaskBloc(context.read<TaskRepository>())..add(LoadTasks()),
         child: MaterialApp(
           title: 'TaskFlow',
           debugShowCheckedModeBanner: false,

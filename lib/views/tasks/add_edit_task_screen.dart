@@ -11,8 +11,7 @@ class AddEditTaskScreen extends StatefulWidget {
   const AddEditTaskScreen({super.key, this.task});
 
   @override
-  State<AddEditTaskScreen> createState() =>
-      _AddEditTaskScreenState();
+  State<AddEditTaskScreen> createState() => _AddEditTaskScreenState();
 }
 
 class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
@@ -44,9 +43,7 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
 
     final task = widget.task;
 
-    titleController = TextEditingController(
-      text: task?.title ?? '',
-    );
+    titleController = TextEditingController(text: task?.title ?? '');
 
     descriptionController = TextEditingController(
       text: task?.description ?? '',
@@ -111,9 +108,7 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(isEditing ? 'Edit Task' : 'Create Task'),
-      ),
+      appBar: AppBar(title: Text(isEditing ? 'Edit Task' : 'Create Task')),
 
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
@@ -177,14 +172,9 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
 
               DropdownButtonFormField<String>(
                 initialValue: category,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                ),
+                decoration: const InputDecoration(border: OutlineInputBorder()),
                 items: categories.map((value) {
-                  return DropdownMenuItem(
-                    value: value,
-                    child: Text(value),
-                  );
+                  return DropdownMenuItem(value: value, child: Text(value));
                 }).toList(),
                 onChanged: (value) {
                   if (value != null) {
@@ -276,9 +266,7 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: saveTask,
-                  child: Text(
-                    isEditing ? 'Update Task' : 'Save Task',
-                  ),
+                  child: Text(isEditing ? 'Update Task' : 'Save Task'),
                 ),
               ),
             ],
