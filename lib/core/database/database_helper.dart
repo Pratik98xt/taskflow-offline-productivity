@@ -1,10 +1,15 @@
+import 'dart:async';
+
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+
+import '../errors/app_exception.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
 
   static Database? _database;
+  static Completer<Database>? _dbOpenCompleter;
 
   DatabaseHelper._init();
 
@@ -13,11 +18,24 @@ class DatabaseHelper {
       return _database!;
     }
 
+    if (_dbOpenCompleter != null) {
+      return _dbOpenCompleter!.future;
+    }
+
+    final completer = Completer<Database>();
+    _dbOpenCompleter = completer;
+
     try {
       _database = await _initDB('taskflow.db');
+      completer.complete(_database!);
+      _dbOpenCompleter = null;
       return _database!;
     } catch (e) {
-      throw Exception('Database initialization failed: $e');
+      _dbOpenCompleter = null;
+      throw DatabaseAppException(
+        'Database initialization failed.',
+        details: e.toString(),
+      );
     }
   }
 
@@ -33,6 +51,7 @@ class DatabaseHelper {
         await db.execute('PRAGMA foreign_keys = ON');
       },
       onCreate: _createDB,
+      onUpgrade: _onUpgradeDB,
     );
   }
 
@@ -69,6 +88,11 @@ class DatabaseHelper {
     ''');
   }
 
+  Future<void> _onUpgradeDB(Database db, int oldVersion, int newVersion) async {
+    // Migration handling for future database versions
+    // Example: sequential version migrations (v1 -> v2 -> v3) can be applied here
+  }
+
   Future<void> close() async {
     final db = _database;
 
@@ -76,5 +100,6 @@ class DatabaseHelper {
       await db.close();
       _database = null;
     }
+    _dbOpenCompleter = null;
   }
 }

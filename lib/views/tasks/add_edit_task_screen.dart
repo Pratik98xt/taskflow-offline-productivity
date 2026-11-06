@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../controllers/task_controller/task_bloc.dart';
 import '../../controllers/task_controller/task_event.dart';
+import '../../controllers/task_controller/task_state.dart';
 import '../../models/task_model.dart';
 
 class AddEditTaskScreen extends StatefulWidget {
@@ -35,6 +36,8 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
 
   DateTime? dueDate;
   TimeOfDay? dueTime;
+
+  bool _isSubmitting = false;
 
   bool get isEditing => widget.task != null;
 
@@ -113,7 +116,14 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
       dueTime?.minute ?? 59,
     );
 
-    if (selectedDeadline.isBefore(DateTime.now())) {
+    // If editing and deadline was not altered, allow keeping original past deadline
+    final originalDeadline = widget.task?.dueDate;
+    final isDeadlineUnchanged =
+        isEditing &&
+        originalDeadline != null &&
+        selectedDeadline.isAtSameMomentAs(originalDeadline);
+
+    if (!isDeadlineUnchanged && selectedDeadline.isBefore(DateTime.now())) {
       return 'Please select a future deadline.';
     }
 
@@ -154,199 +164,237 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
       updatedAt: now,
     );
 
+    setState(() {
+      _isSubmitting = true;
+    });
+
     if (isEditing) {
       context.read<TaskBloc>().add(UpdateTask(task));
     } else {
       context.read<TaskBloc>().add(AddTask(task));
     }
-
-    Navigator.pop(context);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(isEditing ? 'Edit Task' : 'Create Task')),
-      body: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              TextFormField(
-                controller: titleController,
-                decoration: const InputDecoration(
-                  labelText: 'Task Title',
-                  hintText: 'Enter task title',
-                  prefixIcon: Icon(Icons.title),
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Please enter a task title.';
-                  }
-                  if (value.trim().length < 3) {
-                    return 'Title must contain at least 3 characters.';
-                  }
-                  return null;
-                },
+      body: BlocListener<TaskBloc, TaskState>(
+        listener: (context, state) {
+          if (!_isSubmitting) return;
+
+          if (state is TaskError) {
+            setState(() {
+              _isSubmitting = false;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(state.message),
+                backgroundColor: Colors.red,
               ),
-
-              const SizedBox(height: 16),
-
-              TextFormField(
-                controller: descriptionController,
-                maxLines: 4,
-                decoration: const InputDecoration(
-                  labelText: 'Description',
-                  hintText: 'Enter task description',
-                  prefixIcon: Icon(Icons.description_outlined),
-                  alignLabelWithHint: true,
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              DropdownButtonFormField<String>(
-                initialValue: category,
-                decoration: const InputDecoration(
-                  labelText: 'Category',
-                  prefixIcon: Icon(Icons.category_outlined),
-                ),
-                items: categories.map((item) {
-                  return DropdownMenuItem(value: item, child: Text(item));
-                }).toList(),
-                onChanged: (value) {
-                  if (value != null) {
-                    setState(() {
-                      category = value;
-                    });
-                  }
-                },
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please select a category.';
-                  }
-                  return null;
-                },
-              ),
-
-              const SizedBox(height: 16),
-
-              DropdownButtonFormField<TaskPriority>(
-                initialValue: priority,
-                decoration: const InputDecoration(
-                  labelText: 'Priority',
-                  prefixIcon: Icon(Icons.flag_outlined),
-                ),
-                items: TaskPriority.values.map((item) {
-                  return DropdownMenuItem(
-                    value: item,
-                    child: Text(
-                      item.name[0].toUpperCase() + item.name.substring(1),
-                    ),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  if (value != null) {
-                    setState(() {
-                      priority = value;
-                    });
-                  }
-                },
-              ),
-
-              const SizedBox(height: 16),
-
-              DropdownButtonFormField<TaskStatus>(
-                initialValue: status,
-                decoration: const InputDecoration(
-                  labelText: 'Status',
-                  prefixIcon: Icon(Icons.check_circle_outline),
-                ),
-                items: TaskStatus.values.map((item) {
-                  return DropdownMenuItem(
-                    value: item,
-                    child: Text(
-                      item.name == 'inProgress'
-                          ? 'In Progress'
-                          : item.name[0].toUpperCase() + item.name.substring(1),
-                    ),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  if (value != null) {
-                    setState(() {
-                      status = value;
-                    });
-                  }
-                },
-              ),
-
-              const SizedBox(height: 24),
-
-              const Text(
-                'Deadline',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
-
-              const SizedBox(height: 12),
-
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: selectDueDate,
-                      icon: const Icon(Icons.calendar_today_outlined),
-                      label: Text(
-                        dueDate == null
-                            ? 'Select Date'
-                            : '${dueDate!.day}/${dueDate!.month}/${dueDate!.year}',
-                      ),
-                    ),
+            );
+          } else if (state is TaskActionSuccess) {
+            setState(() {
+              _isSubmitting = false;
+            });
+            Navigator.pop(context);
+          }
+        },
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextFormField(
+                  controller: titleController,
+                  decoration: const InputDecoration(
+                    labelText: 'Task Title',
+                    hintText: 'Enter task title',
+                    prefixIcon: Icon(Icons.title),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: dueDate == null ? null : selectDueTime,
-                      icon: const Icon(Icons.access_time),
-                      label: Text(
-                        dueTime == null
-                            ? 'Select Time'
-                            : dueTime!.format(context),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Please enter a task title.';
+                    }
+                    if (value.trim().length < 3) {
+                      return 'Title must contain at least 3 characters.';
+                    }
+                    return null;
+                  },
+                ),
 
-              if (dueDate != null)
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton.icon(
-                    onPressed: () {
+                const SizedBox(height: 16),
+
+                TextFormField(
+                  controller: descriptionController,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    labelText: 'Description',
+                    hintText: 'Enter task description',
+                    prefixIcon: Icon(Icons.description_outlined),
+                    alignLabelWithHint: true,
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                DropdownButtonFormField<String>(
+                  initialValue: category,
+                  decoration: const InputDecoration(
+                    labelText: 'Category',
+                    prefixIcon: Icon(Icons.category_outlined),
+                  ),
+                  items: categories.map((item) {
+                    return DropdownMenuItem(value: item, child: Text(item));
+                  }).toList(),
+                  onChanged: (value) {
+                    if (value != null) {
                       setState(() {
-                        dueDate = null;
-                        dueTime = null;
+                        category = value;
                       });
-                    },
-                    icon: const Icon(Icons.close),
-                    label: const Text('Remove deadline'),
+                    }
+                  },
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please select a category.';
+                    }
+                    return null;
+                  },
+                ),
+
+                const SizedBox(height: 16),
+
+                DropdownButtonFormField<TaskPriority>(
+                  initialValue: priority,
+                  decoration: const InputDecoration(
+                    labelText: 'Priority',
+                    prefixIcon: Icon(Icons.flag_outlined),
+                  ),
+                  items: TaskPriority.values.map((item) {
+                    return DropdownMenuItem(
+                      value: item,
+                      child: Text(
+                        item.name[0].toUpperCase() + item.name.substring(1),
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    if (value != null) {
+                      setState(() {
+                        priority = value;
+                      });
+                    }
+                  },
+                ),
+
+                const SizedBox(height: 16),
+
+                DropdownButtonFormField<TaskStatus>(
+                  initialValue: status,
+                  decoration: const InputDecoration(
+                    labelText: 'Status',
+                    prefixIcon: Icon(Icons.check_circle_outline),
+                  ),
+                  items: TaskStatus.values.map((item) {
+                    return DropdownMenuItem(
+                      value: item,
+                      child: Text(
+                        item.name == 'inProgress'
+                            ? 'In Progress'
+                            : item.name[0].toUpperCase() +
+                                  item.name.substring(1),
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    if (value != null) {
+                      setState(() {
+                        status = value;
+                      });
+                    }
+                  },
+                ),
+
+                const SizedBox(height: 24),
+
+                const Text(
+                  'Deadline',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+
+                const SizedBox(height: 12),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: selectDueDate,
+                        icon: const Icon(Icons.calendar_today_outlined),
+                        label: Text(
+                          dueDate == null
+                              ? 'Select Date'
+                              : '${dueDate!.day}/${dueDate!.month}/${dueDate!.year}',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: dueDate == null ? null : selectDueTime,
+                        icon: const Icon(Icons.access_time),
+                        label: Text(
+                          dueTime == null
+                              ? 'Select Time'
+                              : dueTime!.format(context),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                if (dueDate != null)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          dueDate = null;
+                          dueTime = null;
+                        });
+                      },
+                      icon: const Icon(Icons.close),
+                      label: const Text('Remove deadline'),
+                    ),
+                  ),
+
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _isSubmitting ? null : saveTask,
+                    icon: _isSubmitting
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Icon(isEditing ? Icons.save_outlined : Icons.add),
+                    label: Text(
+                      _isSubmitting
+                          ? (isEditing ? 'Updating...' : 'Creating...')
+                          : (isEditing ? 'Update Task' : 'Create Task'),
+                    ),
                   ),
                 ),
 
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: saveTask,
-                  icon: Icon(isEditing ? Icons.save_outlined : Icons.add),
-                  label: Text(isEditing ? 'Update Task' : 'Create Task'),
-                ),
-              ),
-
-              const SizedBox(height: 20),
-            ],
+                const SizedBox(height: 20),
+              ],
+            ),
           ),
         ),
       ),

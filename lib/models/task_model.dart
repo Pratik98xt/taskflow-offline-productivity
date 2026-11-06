@@ -1,8 +1,10 @@
+import 'package:equatable/equatable.dart';
+
 enum TaskPriority { low, medium, high }
 
 enum TaskStatus { todo, inProgress, completed }
 
-class TaskModel {
+class TaskModel extends Equatable {
   final int? id;
   final String title;
   final String description;
@@ -13,7 +15,7 @@ class TaskModel {
   final DateTime createdAt;
   final DateTime updatedAt;
 
-  TaskModel({
+  const TaskModel({
     this.id,
     required this.title,
     required this.description,
@@ -24,6 +26,53 @@ class TaskModel {
     required this.createdAt,
     required this.updatedAt,
   });
+
+  bool get isOverdue =>
+      dueDate != null &&
+      status != TaskStatus.completed &&
+      dueDate!.isBefore(DateTime.now());
+
+  bool isOverdueAt(DateTime currentTime) =>
+      dueDate != null &&
+      status != TaskStatus.completed &&
+      dueDate!.isBefore(currentTime);
+
+  static TaskPriority parsePriority(dynamic value) {
+    if (value is TaskPriority) return value;
+    if (value is String) {
+      for (final p in TaskPriority.values) {
+        if (p.name.toLowerCase() == value.trim().toLowerCase()) {
+          return p;
+        }
+      }
+    }
+    return TaskPriority.medium;
+  }
+
+  static TaskStatus parseStatus(dynamic value) {
+    if (value is TaskStatus) return value;
+    if (value is String) {
+      for (final s in TaskStatus.values) {
+        if (s.name.toLowerCase() == value.trim().toLowerCase()) {
+          return s;
+        }
+      }
+    }
+    return TaskStatus.todo;
+  }
+
+  static DateTime? _parseDateTime(dynamic value) {
+    if (value == null) return null;
+    if (value is DateTime) return value;
+    if (value is String) {
+      try {
+        return DateTime.parse(value);
+      } catch (_) {
+        return null;
+      }
+    }
+    return null;
+  }
 
   // Convert object into SQLite map
 
@@ -41,21 +90,20 @@ class TaskModel {
     };
   }
 
-  // Convert SQLite map into object
+  // Convert SQLite map into object safely handling corrupt/missing values
 
   factory TaskModel.fromMap(Map<String, dynamic> map) {
+    final now = DateTime.now();
     return TaskModel(
       id: map['id'] as int?,
-      title: map['title'] as String,
-      description: map['description'] as String,
-      category: map['category'] as String,
-      priority: TaskPriority.values.byName(map['priority'] as String),
-      status: TaskStatus.values.byName(map['status'] as String),
-      dueDate: map['dueDate'] == null
-          ? null
-          : DateTime.parse(map['dueDate'] as String),
-      createdAt: DateTime.parse(map['createdAt'] as String),
-      updatedAt: DateTime.parse(map['updatedAt'] as String),
+      title: (map['title'] as String?)?.trim() ?? '',
+      description: (map['description'] as String?) ?? '',
+      category: (map['category'] as String?)?.trim() ?? 'General',
+      priority: parsePriority(map['priority']),
+      status: parseStatus(map['status']),
+      dueDate: _parseDateTime(map['dueDate']),
+      createdAt: _parseDateTime(map['createdAt']) ?? now,
+      updatedAt: _parseDateTime(map['updatedAt']) ?? now,
     );
   }
 
@@ -93,4 +141,17 @@ class TaskModel {
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
+
+  @override
+  List<Object?> get props => [
+    id,
+    title,
+    description,
+    category,
+    priority,
+    status,
+    dueDate,
+    createdAt,
+    updatedAt,
+  ];
 }

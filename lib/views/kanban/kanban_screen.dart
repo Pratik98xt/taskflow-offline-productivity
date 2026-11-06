@@ -29,7 +29,7 @@ class KanbanScreen extends StatelessWidget {
           }
 
           if (state is TaskLoaded) {
-            return _buildBoard(context, state.tasks);
+            return _buildBoard(context, state.allTasks);
           }
 
           return const SizedBox.shrink();
@@ -249,10 +249,7 @@ class KanbanScreen extends StatelessWidget {
   }
 
   Widget _taskCardContent(TaskModel task, Color color) {
-    final isOverdue =
-        task.dueDate != null &&
-        task.dueDate!.isBefore(DateTime.now()) &&
-        task.status != TaskStatus.completed;
+    final isOverdue = task.isOverdue;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),

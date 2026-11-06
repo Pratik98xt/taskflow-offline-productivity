@@ -27,6 +27,9 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
     on<ImportTasks>(_importTasks);
   }
 
+  TaskLoaded? get _currentLoadedState =>
+      state is TaskLoaded ? state as TaskLoaded : null;
+
   // LOAD TASKS
 
   Future<void> _loadTasks(
@@ -53,27 +56,28 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
     AddTask event,
     Emitter<TaskState> emit,
   ) async {
+    final currentLoaded = _currentLoadedState;
     try {
       final task = event.task;
 
-      final existingTasks = await repository.getAllTasks();
-
-      final isDuplicate = existingTasks.any(
-        (existing) =>
-            existing.title.trim().toLowerCase() ==
-                task.title.trim().toLowerCase() &&
-            existing.category.trim().toLowerCase() ==
-                task.category.trim().toLowerCase(),
+      final isDuplicate = await repository.isDuplicateTask(
+        title: task.title,
+        category: task.category,
       );
 
       if (isDuplicate) {
         emit(
-          const TaskActionSuccess(
+          const TaskError(
             'A task with this title already exists in this category.',
           ),
         );
 
-        emit(_buildLoadedState(existingTasks));
+        final existingTasks = await repository.getAllTasks();
+        _emitPreservedLoadedState(
+          existingTasks,
+          emit,
+          previousState: currentLoaded,
+        );
         return;
       }
 
@@ -93,8 +97,9 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
         }
       }
 
+      emit(const TaskActionSuccess('Task created successfully.'));
       final tasks = await repository.getAllTasks();
-      emit(_buildLoadedState(tasks));
+      _emitPreservedLoadedState(tasks, emit, previousState: currentLoaded);
     } catch (e) {
       emit(
         TaskError(
@@ -110,8 +115,31 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
     UpdateTask event,
     Emitter<TaskState> emit,
   ) async {
+    final currentLoaded = _currentLoadedState;
     try {
       final task = event.task;
+
+      final isDuplicate = await repository.isDuplicateTask(
+        title: task.title,
+        category: task.category,
+        excludeId: task.id,
+      );
+
+      if (isDuplicate) {
+        emit(
+          const TaskError(
+            'Another task with this title already exists in this category.',
+          ),
+        );
+
+        final existingTasks = await repository.getAllTasks();
+        _emitPreservedLoadedState(
+          existingTasks,
+          emit,
+          previousState: currentLoaded,
+        );
+        return;
+      }
 
       await repository.updateTask(task);
 
@@ -134,8 +162,9 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
         }
       }
 
+      emit(const TaskActionSuccess('Task updated successfully.'));
       final tasks = await repository.getAllTasks();
-      emit(_buildLoadedState(tasks));
+      _emitPreservedLoadedState(tasks, emit, previousState: currentLoaded);
     } catch (e) {
       emit(
         TaskError(
@@ -151,6 +180,7 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
     DeleteTask event,
     Emitter<TaskState> emit,
   ) async {
+    final currentLoaded = _currentLoadedState;
     try {
       await repository.deleteTask(event.id);
 
@@ -161,8 +191,9 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
         // Task is already deleted.
       }
 
+      emit(const TaskActionSuccess('Task deleted successfully.'));
       final tasks = await repository.getAllTasks();
-      emit(_buildLoadedState(tasks));
+      _emitPreservedLoadedState(tasks, emit, previousState: currentLoaded);
     } catch (e) {
       emit(
         TaskError(
@@ -171,7 +202,8 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
       );
     }
   }
-    // SEARCH
+
+  // SEARCH
 
   void _searchTasks(
     SearchTasks event,
@@ -252,18 +284,20 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
 
     emit(_buildLoadedState(current.allTasks));
   }
-    // EXPORT TASKS
+
+  // EXPORT TASKS
 
   Future<void> _exportTasks(
     ExportTasks event,
     Emitter<TaskState> emit,
   ) async {
+    final currentLoaded = _currentLoadedState;
     try {
       final tasks = await repository.getAllTasks();
 
       if (tasks.isEmpty) {
         emit(const TaskActionSuccess('No tasks available to export.'));
-        emit(_buildLoadedState(tasks));
+        _emitPreservedLoadedState(tasks, emit, previousState: currentLoaded);
         return;
       }
 
@@ -275,7 +309,7 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
         ),
       );
 
-      emit(_buildLoadedState(tasks));
+      _emitPreservedLoadedState(tasks, emit, previousState: currentLoaded);
     } catch (e) {
       emit(
         TaskError(
@@ -291,19 +325,28 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
     ImportTasks event,
     Emitter<TaskState> emit,
   ) async {
+    final currentLoaded = _currentLoadedState;
     try {
       final importedTasks = await ImportExportService.importTasks();
 
       // User cancelled the file picker.
       if (importedTasks == null) {
         emit(const TaskActionSuccess('Import cancelled.'));
-        emit(_buildLoadedState(await repository.getAllTasks()));
+        _emitPreservedLoadedState(
+          await repository.getAllTasks(),
+          emit,
+          previousState: currentLoaded,
+        );
         return;
       }
 
       if (importedTasks.isEmpty) {
         emit(const TaskActionSuccess('No valid tasks found in backup.'));
-        emit(_buildLoadedState(await repository.getAllTasks()));
+        _emitPreservedLoadedState(
+          await repository.getAllTasks(),
+          emit,
+          previousState: currentLoaded,
+        );
         return;
       }
 
@@ -341,7 +384,7 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
         ),
       );
 
-      emit(_buildLoadedState(updatedTasks));
+      _emitPreservedLoadedState(updatedTasks, emit, previousState: currentLoaded);
     } catch (e) {
       emit(
         TaskError(
@@ -350,7 +393,33 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
       );
     }
   }
-    // FILTERING AND SORTING ENGINE
+
+  // EMIT LOADED STATE PRESERVING FILTERS AND SORTING
+
+  void _emitPreservedLoadedState(
+    List<TaskModel> allTasks,
+    Emitter<TaskState> emit, {
+    TaskLoaded? previousState,
+  }) {
+    final current = previousState ?? (state is TaskLoaded ? state as TaskLoaded : null);
+    if (current != null) {
+      emit(
+        _buildLoadedState(
+          allTasks,
+          searchQuery: current.searchQuery,
+          priority: current.priority,
+          status: current.status,
+          category: current.category,
+          dueDate: current.dueDate,
+          sortOption: current.sortOption,
+        ),
+      );
+    } else {
+      emit(_buildLoadedState(allTasks));
+    }
+  }
+
+  // FILTERING AND SORTING ENGINE
 
   TaskLoaded _buildLoadedState(
     List<TaskModel> allTasks, {

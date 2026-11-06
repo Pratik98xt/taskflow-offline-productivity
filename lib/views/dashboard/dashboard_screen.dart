@@ -317,6 +317,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
       body: BlocConsumer<TaskBloc, TaskState>(
         listener: (context, state) {
+          if (state is TaskLoaded) {
+            if (searchController.text != state.searchQuery) {
+              searchController.text = state.searchQuery;
+            }
+          }
+
+          if (state is TaskActionSuccess) {
+            ScaffoldMessenger.of(context)
+                .showSnackBar(SnackBar(content: Text(state.message)));
+          }
+
           if (state is TaskError) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -496,12 +507,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-  state.allTasks.isEmpty
-      ? Icons.task_alt_outlined
-      : Icons.search_off,
-  size: 64,
-  color: Colors.grey.shade400,
-),
+              state.allTasks.isEmpty
+                  ? Icons.task_alt_outlined
+                  : Icons.search_off,
+              size: 64,
+              color: Colors.grey.shade400,
+            ),
 
             const SizedBox(height: 12),
 
@@ -582,10 +593,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                 // DESCRIPTION
                 if (task.description.trim().isNotEmpty)
-  Text(
-    task.description,
-    style: TextStyle(color: Colors.grey.shade600),
-  ),
+                  Text(
+                    task.description,
+                    style: TextStyle(color: Colors.grey.shade600),
+                  ),
 
                 const SizedBox(height: 12),
 
@@ -634,10 +645,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     return DropdownMenuItem(
                       value: status,
                       child: Text(
-  status == TaskStatus.inProgress
-      ? 'In Progress'
-      : status.name[0].toUpperCase() + status.name.substring(1),
-),
+                        status == TaskStatus.inProgress
+                            ? 'In Progress'
+                            : status.name[0].toUpperCase() +
+                                  status.name.substring(1),
+                      ),
                     );
                   }).toList(),
 

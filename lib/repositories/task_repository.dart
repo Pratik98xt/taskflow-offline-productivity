@@ -10,6 +10,46 @@ class TaskRepository {
   TaskRepository({DatabaseHelper? databaseHelper})
     : databaseHelper = databaseHelper ?? DatabaseHelper.instance;
 
+  // CHECK DUPLICATE TASK
+  Future<bool> isDuplicateTask({
+    required String title,
+    required String category,
+    int? excludeId,
+  }) async {
+    try {
+      final db = await databaseHelper.database;
+      final trimmedTitle = title.trim().toLowerCase();
+      final trimmedCategory = category.trim().toLowerCase();
+
+      final whereClause = excludeId != null
+          ? 'LOWER(TRIM(title)) = ? AND LOWER(TRIM(category)) = ? AND id != ?'
+          : 'LOWER(TRIM(title)) = ? AND LOWER(TRIM(category)) = ?';
+
+      final whereArgs = excludeId != null
+          ? [trimmedTitle, trimmedCategory, excludeId]
+          : [trimmedTitle, trimmedCategory];
+
+      final result = await db.query(
+        'tasks',
+        where: whereClause,
+        whereArgs: whereArgs,
+        limit: 1,
+      );
+
+      return result.isNotEmpty;
+    } on DatabaseException catch (e) {
+      throw DatabaseAppException(
+        'Unable to check for duplicate task.',
+        details: e.toString(),
+      );
+    } catch (e) {
+      throw DatabaseAppException(
+        'Unexpected error checking duplicates.',
+        details: e.toString(),
+      );
+    }
+  }
+
   // CREATE TASK
 
   Future<int> createTask(TaskModel task) async {
@@ -20,6 +60,11 @@ class TaskRepository {
     } on DatabaseException catch (e) {
       throw DatabaseAppException(
         'Unable to create task.',
+        details: e.toString(),
+      );
+    } catch (e) {
+      throw DatabaseAppException(
+        'Unexpected error creating task.',
         details: e.toString(),
       );
     }
@@ -42,6 +87,11 @@ class TaskRepository {
     } on FormatException catch (e) {
       throw DatabaseAppException(
         'Invalid task data found.',
+        details: e.toString(),
+      );
+    } catch (e) {
+      throw DatabaseAppException(
+        'Unexpected error retrieving tasks.',
         details: e.toString(),
       );
     }
@@ -75,6 +125,11 @@ class TaskRepository {
         'Invalid task data found.',
         details: e.toString(),
       );
+    } catch (e) {
+      throw DatabaseAppException(
+        'Unexpected error retrieving task.',
+        details: e.toString(),
+      );
     }
   }
 
@@ -103,6 +158,12 @@ class TaskRepository {
         'Unable to update task.',
         details: e.toString(),
       );
+    } catch (e) {
+      if (e is AppException) rethrow;
+      throw DatabaseAppException(
+        'Unexpected error updating task.',
+        details: e.toString(),
+      );
     }
   }
 
@@ -116,6 +177,11 @@ class TaskRepository {
     } on DatabaseException catch (e) {
       throw DatabaseAppException(
         'Unable to delete task.',
+        details: e.toString(),
+      );
+    } catch (e) {
+      throw DatabaseAppException(
+        'Unexpected error deleting task.',
         details: e.toString(),
       );
     }

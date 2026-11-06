@@ -47,53 +47,39 @@ class AnalyticsScreen extends StatelessWidget {
         .where((task) => task.status == TaskStatus.completed)
         .length;
 
-    final overdue = tasks.where((task) {
-      if (task.dueDate == null || task.status == TaskStatus.completed) {
-        return false;
-      }
-
-      final dueDate = task.dueDate!;
-      return DateTime(
-        dueDate.year,
-        dueDate.month,
-        dueDate.day,
-      ).isBefore(DateTime(now.year, now.month, now.day));
-    }).length;
+    final overdue = tasks.where((task) => task.isOverdueAt(now)).length;
 
     final pending = total - completed - overdue;
 
     final completionRate = total == 0 ? 0.0 : (completed / total) * 100;
     if (tasks.isEmpty) {
-  return Center(
-    child: Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.analytics_outlined,
-            size: 72,
-            color: Colors.grey.shade400,
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.analytics_outlined,
+                size: 72,
+                color: Colors.grey.shade400,
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'No analytics available yet',
+                style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Create tasks and track your progress to see productivity insights here.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey.shade600),
+              ),
+            ],
           ),
-          const SizedBox(height: 16),
-          const Text(
-            'No analytics available yet',
-            style: TextStyle(
-              fontSize: 19,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Create tasks and track your progress to see productivity insights here.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey.shade600),
-          ),
-        ],
-      ),
-    ),
-  );
-}
+        ),
+      );
+    }
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
